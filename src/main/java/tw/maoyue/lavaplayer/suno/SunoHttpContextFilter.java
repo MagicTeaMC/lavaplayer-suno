@@ -8,12 +8,12 @@ import org.apache.http.client.protocol.HttpClientContext;
 public class SunoHttpContextFilter implements HttpContextFilter {
     @Override
     public void onContextOpen(HttpClientContext context) {
-        // Add custom logic for when the context is opened
+        //
     }
 
     @Override
     public void onContextClose(HttpClientContext context) {
-        // Add custom logic for when the context is closed
+        //
     }
 
     @Override

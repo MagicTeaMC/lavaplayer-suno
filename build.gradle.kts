@@ -2,6 +2,7 @@ plugins {
     kotlin("jvm") version "1.8.22"
     application
 }
+java.sourceCompatibility = JavaVersion.VERSION_11
 
 group = "tw.maoyue"
 version = "1.0-SNAPSHOT"

@@ -8,13 +8,16 @@ import com.sedmelluq.discord.lavaplayer.tools.io.HttpClientTools;
 import com.sedmelluq.discord.lavaplayer.tools.io.HttpInterface;
 import com.sedmelluq.discord.lavaplayer.track.*;
 import org.apache.http.client.methods.HttpGet;
+
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
+import java.util.regex.Pattern;
 
 public class SunoAudioSourceManager implements AudioSourceManager {
     private final HttpInterface httpInterface;
     private static final String BASE_URL = "https://studio-api.suno.ai/api/clip/";
+    private static final Pattern URL_PATTERN = Pattern.compile("^https?:\\/\\/suno\\.com\\/song\\/(?<id>[a-z0-9-]+)\\/?$");
 
     public SunoAudioSourceManager() {
         var httpInterfaceManager = HttpClientTools.createDefaultThreadLocalManager();
@@ -29,39 +32,38 @@ public class SunoAudioSourceManager implements AudioSourceManager {
 
     @Override
     public AudioItem loadItem(AudioPlayerManager manager, AudioReference reference) {
-        String songId = extractSongId(reference.identifier);
-        if (songId == null) {
-            return null;
-        }
+        var matcher = URL_PATTERN.matcher(reference.identifier);
+        if (matcher.find()) {
+            String id = matcher.group("id");
 
-        try {
-            HttpGet request = new HttpGet(BASE_URL + songId);
-            var response = httpInterface.execute(request);
-            var responseJson = JsonBrowser.parse(response.getEntity().getContent());
+            try (var response = httpInterface.execute(new HttpGet(BASE_URL + id))) {
+                var responseJson = JsonBrowser.parse(response.getEntity().getContent());
 
-            return loadTrack(responseJson);
-        } catch (IOException e) {
-            e.printStackTrace();
-            return null;
+                if (responseJson.get("status").text().equals("complete")) {
+                    return loadAudioTrack(responseJson);
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
         }
+        return null;
     }
 
-    private AudioTrack loadTrack(JsonBrowser trackData) {
+    public HttpInterface getHttpInterface() {
+        return httpInterface;
+    }
+
+    private AudioTrack loadAudioTrack(JsonBrowser trackData) {
+        long duration = (long) (trackData.get("duration").as(Number.class).doubleValue() * 1000);
         String id = trackData.get("id").text();
-        String title = trackData.get("title").text();
-        String author = trackData.get("display_name").text();
-        long duration = (long) (trackData.get("duration").asDouble() * 1000);
-        String audioUrl = trackData.get("audio_url").text();
-
-        AudioTrackInfo trackInfo = new AudioTrackInfo(title, author, duration, id, false, audioUrl);
-        return new SunoAudioTrack(trackInfo, this);
-    }
-
-    private String extractSongId(String url) {
-        if (url == null || !url.startsWith("https://suno.com/song/")) {
-            return null;
-        }
-        return url.substring("https://suno.com/song/".length());
+        return new SunoAudioTrack(new AudioTrackInfo(
+                trackData.get("title").text(),
+                trackData.get("display_name").text(),
+                duration,
+                id,
+                false,
+                trackData.get("audio_url").text()
+        ), id, this);
     }
 
     @Override
@@ -71,17 +73,17 @@ public class SunoAudioSourceManager implements AudioSourceManager {
 
     @Override
     public void encodeTrack(AudioTrack track, DataOutput output) throws IOException {
-        DataFormatTools.writeNullableText(output, track.getIdentifier());
+        SunoAudioTrack sunoTrack = (SunoAudioTrack) track;
+        DataFormatTools.writeNullableText(output, sunoTrack.getId());
     }
 
     @Override
     public AudioTrack decodeTrack(AudioTrackInfo trackInfo, DataInput input) throws IOException {
-        String trackId = DataFormatTools.readNullableText(input);
-        return new SunoAudioTrack(trackInfo, this);
+        return new SunoAudioTrack(trackInfo, DataFormatTools.readNullableText(input), this);
     }
 
     @Override
     public void shutdown() {
-        // Implement shutdown logic if needed
+        //
     }
 }

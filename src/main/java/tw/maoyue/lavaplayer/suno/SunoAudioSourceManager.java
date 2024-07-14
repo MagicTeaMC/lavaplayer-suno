@@ -54,7 +54,7 @@ public class SunoAudioSourceManager implements AudioSourceManager {
     }
 
     private AudioTrack loadAudioTrack(JsonBrowser trackData) {
-        long duration = (long) (trackData.get("duration").as(Number.class).doubleValue() * 1000);
+        long duration = (long) (trackData.get("metadata").get("duration").as(Number.class).doubleValue() * 1000);
         String id = trackData.get("id").text();
         return new SunoAudioTrack(new AudioTrackInfo(
                 trackData.get("title").text(),
